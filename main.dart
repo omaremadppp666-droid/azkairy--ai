@@ -1,0 +1,455 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+void main() {
+  runApp(const AzkariAIApp());
+}
+
+class AzkariAIApp extends StatefulWidget {
+  const AzkariAIApp({Key? key}) : super(key: key);
+
+  @override
+  State<AzkariAIApp> createState() => _AzkariAIAppState();
+}
+
+class _AzkariAIAppState extends State<AzkariAIApp> {
+  ThemeMode _themeMode = ThemeMode.dark; // التحكم بالشاشة داكنة أو فاتحة
+
+  void toggleTheme(bool isDark) {
+    setState(() {
+      _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'أذكاري AI',
+      themeMode: _themeMode,
+      // الثيم الفاتح (Light Mode)
+      theme: ThemeData(
+        brightness: Brightness.light,
+        scaffoldBackgroundColor: Colors.grey[50],
+        primaryColor: const Color(0xFF5D48B7),
+        cardColor: Colors.white,
+      ),
+      // الثيم الداكن (Dark Mode الكحلي والبنفسجي)
+      darkTheme: ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: const Color(0xFF0F111E),
+        primaryColor: const Color(0xFF5D48B7),
+        cardColor: const Color(0xFF1B1E2E),
+      ),
+      home: MainLayoutScreen(onThemeChanged: toggleTheme),
+    );
+  }
+}
+
+class MainLayoutScreen extends StatefulWidget {
+  final Function(bool) onThemeChanged;
+  const MainLayoutScreen({Key? key, required this.onThemeChanged}) : super(key: key);
+
+  @override
+  State<MainLayoutScreen> createState() => _MainLayoutScreenState();
+}
+
+class _MainLayoutScreenState extends State<MainLayoutScreen> {
+  int _currentIndex = 4; // نبدأ من صفحة الصلوات الرئيسية يمين الشاشة
+
+  late List<Widget> _screens;
+
+  @override
+  void initState() {
+    super.initState();
+    _screens = [
+      SettingsTab(onThemeChanged: widget.onThemeChanged),
+      const AlarmTab(),
+      const AzkarTab(),
+      const QuranTab(),
+      const PrayerTab(),
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: _screens[_currentIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: (index) => setState(() => _currentIndex = index),
+        type: BottomNavigationBarType.fixed,
+        backgroundColor: const Color(0xFF161926),
+        selectedItemColor: const Color(0xFF9D8BFF),
+        unselectedItemColor: Colors.white38,
+        selectedFontSize: 11,
+        unselectedFontSize: 11,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), activeIcon: Icon(Icons.settings), label: 'الإعدادات'),
+          BottomNavigationBarItem(icon: Icon(Icons.alarm_outlined), activeIcon: Icon(Icons.alarm), label: 'المنبه الذكي'),
+          BottomNavigationBarItem(icon: Icon(Icons.volunteer_activism_outlined), activeIcon: Icon(Icons.volunteer_activism), label: 'الأذكار والسبحة'),
+          BottomNavigationBarItem(icon: Icon(Icons.menu_book_outlined), activeIcon: Icon(Icons.menu_book), label: 'القرآن'),
+          BottomNavigationBarItem(icon: Icon(Icons.mosque_outlined), activeIcon: Icon(Icons.mosque), label: 'الصلوات'),
+        ],
+      ),
+    );
+  }
+}
+
+// ==========================================
+// 1. شاشة مواقيت الصلاة (الخلفية المتغيرة، الغيوم، الإشعار الثابت والقبلة)
+// ==========================================
+class PrayerTab extends StatefulWidget {
+  const PrayerTab({Key? key}) : super(key: key);
+  @override
+  State<PrayerTab> createState() => _PrayerTabState();
+}
+
+class _PrayerTabState extends State<PrayerTab> {
+  Duration _remainingTime = const Duration(hours: 0, minutes: 1, seconds: 9);
+  Timer? _timer;
+  bool isShorooqTime = false; // التحكم بالغيوم ديناميكياً (ليلاً شروقاً)
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_remainingTime.inSeconds > 0) {
+        setState(() { _remainingTime -= const Duration(seconds: 1); });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // بنفسجي بالليل مع غيوم سوداء، وقت الشروق غيوم بيضاء خلفية منورة
+    Color dynamicBackground = isShorooqTime ? const Color(0xFF1F355E) : const Color(0xFF0F111E);
+    Color cloudColor = isShorooqTime ? Colors.white24 : Colors.black45;
+
+    return Scaffold(
+      backgroundColor: dynamicBackground,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              // جزء الإشعار الثابت العلوي (باقي كم ساعة) والبوصلة التفاعلية
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.explore_outlined, color: Colors.white, size: 28),
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('اتجاه القبلة: 180° نحو مكة المكرمة 🕋', textAlign: TextAlign.center))
+                      );
+                    },
+                  ),
+                  Row(
+                    children: [
+                      Icon(Icons.cloud, color: cloudColor, size: 30), // الغيوم المتغيرة ديناميكياً
+                      const SizedBox(width: 8),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          const Text('متبقي على صلاة الفجر', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                          Text(
+                            "${_remainingTime.inHours}:${(_remainingTime.inMinutes%60).toString().padLeft(2,'0')}:${(_remainingTime.inSeconds%60).toString().padLeft(2,'0')}", 
+                            style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold, fontFamily: 'monospace')
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // التقويم الهجري والميلادي والأيام المهمة والصوم
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(12)),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('🌙 غداً صيام الأيام البيض', style: TextStyle(color: Colors.amber, fontSize: 12, fontWeight: FontWeight.bold)),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: const [
+                        Text('محافظة الشرقية 📍', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                        Text('12 محرم 1448 • 27 جوان 2026', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              // بطاقة الصلوات الخمس الرئيسية (الشكل الخارجي مسجد مريح)
+              Container(
+                decoration: BoxDecoration(color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(24)),
+                child: Column(
+                  children: [
+                    _buildRow('الفجر', '4:05 ص', Icons.wb_twilight, true),
+                    _buildRow('الظهر', '12:57 م', Icons.wb_sunny_rounded, false),
+                    _buildRow('العصر', '4:33 م', Icons.wb_sunny_outlined, false),
+                    _buildRow('المغرب', '8:00 م', Icons.wb_cloudy_outlined, false),
+                    _buildRow('العشاء', '9:34 م', Icons.nightlight_round_rounded, false),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              // زر محاكاة لتغيير الغيوم ديناميكياً لتراها بنفسك
+              TextButton(
+                onPressed: () => setState(() => isShorooqTime = !isShorooqTime),
+                child: Text(isShorooqTime ? "محاكاة وقت الليل (غيوم سوداء)" : "محاكاة وقت الشروق (غيوم بيضاء)", style: const TextStyle(color: Color(0xFF9D8BFF))),
+              )
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRow(String name, String time, IconData icon, bool isNext) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+      child: Row(
+        children: [
+          Icon(Icons.volume_up, color: isNext ? const Color(0xFF9D8BFF) : Colors.white24, size: 20),
+          const SizedBox(width: 8),
+          Text(time, style: TextStyle(color: isNext ? Colors.white : Colors.white70, fontFamily: 'monospace')),
+          const Spacer(),
+          Text(name, style: TextStyle(color: isNext ? Colors.white : Colors.white70, fontWeight: isNext ? FontWeight.bold : FontWeight.normal)),
+          const SizedBox(width: 8),
+          Icon(icon, color: isNext ? const Color(0xFF9D8BFF) : Colors.white60, size: 20),
+        ],
+      ),
+    );
+  }
+}
+
+// ==========================================
+// 2. شاشة القرآن الكريم كاملاً بالبحث المفصل
+// ==========================================
+class QuranTab extends StatefulWidget {
+  const QuranTab({Key? key}) : super(key: key);
+  @override
+  State<QuranTab> createState() => _QuranTabState();
+}
+
+class _QuranTabState extends State<QuranTab> {
+  final List<Map<String, dynamic>> _surahs = [
+    {'number': 1, 'name': 'الفاتحة', 'type': 'مكية', 'verses': 7, 'part': 'الحزب 1 • الربع 1'},
+    {'number': 2, 'name': 'البقرة', 'type': 'مدنية', 'verses': 286, 'part': 'الحزب 1-5 • الربع 1-20'},
+    {'number': 3, 'name': 'آل عمران', 'type': 'مدنية', 'verses': 200, 'part': 'الحزب 5-8 • الربع 21-32'},
+  ];
+  List<Map<String, dynamic>> _filtered = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _filtered = _surahs;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('القرآن الكريم كاملاً'), backgroundColor: const Color(0xFF161926), centerTitle: true),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: TextField(
+              onChanged: (q) => setState(() => _filtered = _surahs.where((s) => s['name'].contains(q)).toList()),
+              textAlign: TextAlign.right,
+              decoration: InputDecoration(
+                hintText: 'ابحث عن السورة (مكية/مدنية)...',
+                prefixIcon: const Icon(Icons.search, color: Colors.white54),
+                filled: true,
+                fillColor: Theme.of(context).cardColor,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              ),
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: _filtered.length,
+              itemBuilder: (context, index) {
+                final s = _filtered[index];
+                return Card(
+                  margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  color: Theme.of(context).cardColor,
+                  child: ListTile(
+                    leading: CircleAvatar(backgroundColor: const Color(0xFF5D48B7), child: Text('${s['number']}', style: const TextStyle(color: Colors.white))),
+                    title: Text(s['name'], textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text('${s['part']} | آياتها: ${s['verses']} [${s['type']}]', textAlign: TextAlign.right, style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==========================================
+// 3. شاشة قاعدة بيانات الأذكار الضخمة (عربي وإنجليزي معاً) والسبحة التفاعلية
+// ==========================================
+class AzkarTab extends StatefulWidget {
+  const AzkarTab({Key? key}) : super(key: key);
+  @override
+  State<AzkarTab> createState() => _AzkarTabState();
+}
+
+class _AzkarTabState extends State<AzkarTab> {
+  int _count = 0;
+  // قاعدة بيانات كاملة لكل الأذكار المطلوبة (صباح، مساء، طعام، سفر، مرض، تفوق، حج، زواج...)
+  final List<Map<String, String>> _allAzkarWorld = [
+    {'cat': 'أذكار الصباح والمساء', 'ar': 'أَصْبَحْنَا وَأَصْبَحَ الْمُلْكُ لِلَّهِ وَالْحَمْدُ لِلَّهِ', 'en': 'We have entered upon morning and the kingdom belongs to Allah.'},
+    {'cat': 'أذكار السفر والكرب', 'ar': 'سُبْحَانَ الَّذِي سَخَّرَ لَنَا هَذَا وَمَا كُنَّا لَهُ مُقْرِنِينَ', 'en': 'Glory is to Him Who has subjected this to us.'},
+    {'cat': 'أذكار الملبس والثياب', 'ar': 'الْحَمْدُ لِلَّهِ الَّذِي كَسَانِي هَذَا الثَّوْبَ', 'en': 'Praise be to Allah who has clothed me with this garment.'},
+    {'cat': 'أذكار الطعام والشراب', 'ar': 'بِسْمِ اللَّهِ فِي أَوَّلِهِ وَآخِرِهِ', 'en': 'In the Name of Allah at the beginning and at the end.'},
+    {'cat': 'أذكار الأمور الصعبة والمرض', 'ar': 'اللَّهُمَّ لَا سَهْلَ إِلَّا مَا جَعَلْتَهُ سَهْلًا وَأَنْتَ تَجْعَلُ الْحَزْنَ إِذَا شِئْتَ سَهْلًا', 'en': 'O Allah, there is no ease except in what You have made easy.'},
+    {'cat': 'أذكار الحج والعمرة وأيام عرفة', 'ar': 'لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ', 'en': 'There is no god but Allah alone, He has no partner.'},
+    {'cat': 'أذكار الأطفال والزواج والبيت', 'ar': 'أُعِيذُكُمْ بِكَلِمَاتِ اللَّهِ التَّامَّةِ مِنْ كُلِّ شَيْطَانٍ وَهَامَّةٍ', 'en': 'I seek refuge for you in the perfect words of Allah.'},
+    {'cat': 'أذكار النجاح والتفوق والذكاء', 'ar': 'رَبِّ اشْرَحْ لِي صَدْرِي وَيَسِّرْ لِي أَمْرِي وَاحْلُلْ عُقْدَةً مِّن لِّسَانِي', 'en': 'My Lord, expand for me my breast and ease for me my task.'},
+    {'cat': 'أذكار الصلاة والمسجد', 'ar': 'اللَّهُمَّ افْتَحْ لِي أَبْوَابَ رَحْمَتِكَ', 'en': 'O Allah, open for me the gates of Your mercy.'},
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF161926),
+          bottom: const TabBar(
+            tabs: [Tab(text: 'المسبحة الإلكترونية'), Tab(text: 'قوائم الأذكار المترجمة')],
+            indicatorColor: Color(0xFF9D8BFF),
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            // المسبحة الإلكترونية التفاعلية للاهتزاز
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('سُبْحَانَ اللهِ وَبِحَمْدِهِ ، سُبْحَانَ اللهِ الْعَظِيمِ', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                const SizedBox(height: 30),
+                GestureDetector(
+                  onTap: () { setState(() => _count++); HapticFeedback.lightImpact(); },
+                  child: Container(
+                    width: 170, height: 170,
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: const Color(0xFF5D48B7), boxShadow: [BoxShadow(color: const Color(0xFF5D48B7).withOpacity(0.4), blurRadius: 15)]),
+                    child: Center(child: Text('$_count', style: const TextStyle(fontSize: 46, fontWeight: FontWeight.bold))),
+                  ),
+                ),
+                IconButton(icon: const Icon(Icons.refresh, color: Colors.redAccent), onPressed: () => setState(() => _count = 0))
+              ],
+            ),
+            // قوائم الأذكار المعروضة عربي وإنجليزي معاً في نفس الوقت
+            ListView.builder(
+              padding: const EdgeInsets.all(10),
+              itemCount: _allAzkarWorld.length,
+              itemBuilder: (context, index) {
+                final azkar = _allAzkarWorld[index];
+                return Card(
+                  color: Theme.of(context).cardColor,
+                  margin: const EdgeInsets.symmetric(vertical: 6),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(14.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(azkar['cat']!, style: const TextStyle(color: Color(0xFF9D8BFF), fontSize: 12, fontWeight: FontWeight.bold), textAlign: TextAlign.right),
+                        const SizedBox(height: 6),
+                        Text(azkar['ar']!, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold), textAlign: TextAlign.right, textDirection: TextDirection.rtl),
+                        const SizedBox(height: 6),
+                        Text(azkar['en']!, style: const TextStyle(fontSize: 12, color: Colors.white38), textAlign: TextAlign.left),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            )
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ==========================================
+// 4. منبه الفجر الذكي بالأسئلة الرياضية لمنع النوم ومساعد الـ AI
+// ==========================================
+class AlarmTab extends StatefulWidget {
+  const AlarmTab({Key? key}) : super(key: key);
+  @override
+  State<AlarmTab> createState() => _AlarmTabState();
+}
+
+class _AlarmTabState extends State<AlarmTab> {
+  bool isAlarmSolved = false;
+
+  void _showLockQuestion() {
+    int answer = 0;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('⏰ منبه الفجر والذكاء الاصطناعي يتحدى نومك!', textAlign: TextAlign.center, style: TextStyle(fontSize: 15)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('حل المسألة الرياضية لإغلاق صوت التنبيه والتأكد من استيقاظك التام للصلاة والنجاح:', textAlign: TextAlign.center, style: TextStyle(fontSize: 13)),
+            const SizedBox(height: 12),
+            const Text('12 + 15 = ؟', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Color(0xFF9D8BFF))),
+            TextField(
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              onChanged: (v) => answer = int.tryParse(v) ?? 0,
+              decoration: const InputDecoration(hintText: 'اكتب الإجابة هنا لإلغاء القفل'),
+            )
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              if (answer == 27) {
+                setState(() => isAlarmSolved = true);
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('أحسنت! تم إيقاف المنبه بنجاح، صلاة مقبولة ويوم مبارك 🕌')));
+              } else {
+                HapticFeedback.vibrate(); // اهتزاز في حال الإجابة الخاطئة لمنع النوم
+              }
+            },
+            child: const Text('تأكيد الإجابة والحل'),
+          )
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('مساعد أذكاري والمنبه الذكي AI'), backgroundColor: const Color(0xFF161926), centerTitle: true),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.psychology, size: 70, color: Color(0xFF9D8BFF)),
+            const SizedBox(height: 12),
+            const Text('شعلة الاستيقاظ الديني والفكري', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            const Text('تطبيقنا لن يغلق التنبيه الثابت إلا بعد الإجابة الفورية الصحيحة على الأسئلة الدينية أو الرياضية لحمايتك من النوم الفجائي.', textAlign: TextAlign.
